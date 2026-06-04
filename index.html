@@ -726,18 +726,7 @@ function buildPills(elId,genres,cb){
   });
 }
 
-function setHero(){
-  var pool=MOVIES.concat(TV).filter(function(i){return parseFloat(i.rating)>7.5});
-  var item=pool[Math.floor(Math.random()*pool.length)]||MOVIES[0];
-  document.getElementById("heroBg").style.backgroundImage="url("+item.img+")";
-  document.getElementById("heroTitle").textContent=item.title;
-  document.getElementById("heroRtg").textContent="★ "+item.rating;
-  document.getElementById("heroYear").textContent=item.year;
-  document.getElementById("heroType").textContent=item.type==="tv"?"TV Series":"Movie";
-  document.getElementById("heroDesc").textContent=item.desc||"";
-  document.getElementById("heroPlay").onclick=function(){openMedia(item)};
-  document.getElementById("heroInfo").onclick=function(){openMedia(item)};
-}
+// setHero handled inside init() via trending fetch
 
 function renderHome(){
   document.getElementById("homeMovies").innerHTML=MOVIES.slice(0,8).map(card).join("");
@@ -809,13 +798,13 @@ function openMedia(item){
   document.getElementById("wGenre").textContent=item.type==="tv"?"TV Series":"Movie";
 
   var EMBEDS_MOVIE = [
-    "https://www.2embed.cc/embed/"+item.id,
+    "https://www.2embed.cc/embed/"+(item.imdb_id||item.id),
     "https://multiembed.mov/?video_id="+item.id+"&tmdb=1",
     "https://moviesapi.club/movie/"+item.id,
     "https://embed.su/embed/movie/"+item.id
   ];
   var EMBEDS_TV = [
-    "https://www.2embed.cc/embedtv/"+item.id+"&s=1&e=1",
+    "https://www.2embed.cc/embedtv/"+(item.imdb_id||item.id)+"&s=1&e=1",
     "https://multiembed.mov/?video_id="+item.id+"&tmdb=1&s=1&e=1",
     "https://moviesapi.club/tv/"+item.id+"-1-1",
     "https://embed.su/embed/tv/"+item.id+"/1/1"
@@ -863,12 +852,22 @@ function openMedia(item){
 
   if(item.type==="tv"){
     document.getElementById("epSection").style.display="block";
-    // fetch real season count
-    tmdbFetch("/tv/"+item.id).then(function(data){
-      item.numSeasons=data.number_of_seasons||5;
+    // fetch real season count + external IDs (imdb)
+    Promise.all([
+      tmdbFetch("/tv/"+item.id),
+      tmdbFetch("/tv/"+item.id+"/external_ids")
+    ]).then(function(res){
+      item.numSeasons = res[0].number_of_seasons||5;
+      item.imdb_id = res[1].imdb_id||null;
       buildEpisodes(item);
     }).catch(function(){buildEpisodes(item);});
   } else {
+    // fetch imdb id for movies too
+    tmdbFetch("/movie/"+item.id+"/external_ids").then(function(res){
+      item.imdb_id = res.imdb_id||null;
+      launchMovie(item);
+    }).catch(function(){launchMovie(item);});
+  }
     document.getElementById("epSection").style.display="none";
   }
 
@@ -1107,6 +1106,7 @@ window.rate=rate;
 window.postComment=postComment;
 window.togComments=togComments;
 window.playEp=playEp;
+window.launchMovie=launchMovie;
 window.onSeasonChange=onSeasonChange;
 window.switchLB=switchLB;
 window.clearHist=clearHist;
@@ -1117,6 +1117,8 @@ window.onSearch=onSearch;
 window.openAvModal=openAvModal;
 window.closeAvModal=closeAvModal;
 window.saveAvatar=saveAvatar;
+window.buildEpButtons=buildEpButtons;
+window.tryEmbed=tryEmbed;
 
 initOnboarding();
 
